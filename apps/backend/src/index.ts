@@ -3,6 +3,11 @@ import { cors } from "hono/cors";
 
 export interface Env {
   DB: D1Database;
+  /** Generic key-value store, currently used to back Login with ChatGPT's
+   * server-side sessions (see apps/web/lib/chatgpt-auth.ts) — that library
+   * defaults to an in-process Map, which doesn't survive across the many
+   * separate serverless instances a host like Vercel may route requests to. */
+  SESSIONS: KVNamespace;
   /** Shared secret with the Next.js BFF — the only intended caller. */
   INTERNAL_SECRET: string;
   /** Comma-separated list of origins allowed to call this API directly
@@ -47,10 +52,20 @@ app.use("*", async (c, next) => {
   if (!secret || secret !== c.env.INTERNAL_SECRET) {
     return c.json({ error: "Unauthorized" }, 401);
   }
+  await next();
+});
+
+// Registered on both the collection and item routes — Hono's "/x/*" pattern
+// doesn't also match the bare "/x".
+app.use("/conversations", async (c, next) => {
   const userId = c.req.header("x-user-id");
-  if (!userId) {
-    return c.json({ error: "Missing x-user-id" }, 400);
-  }
+  if (!userId) return c.json({ error: "Missing x-user-id" }, 400);
+  c.set("userId", userId);
+  await next();
+});
+app.use("/conversations/*", async (c, next) => {
+  const userId = c.req.header("x-user-id");
+  if (!userId) return c.json({ error: "Missing x-user-id" }, 400);
   c.set("userId", userId);
   await next();
 });
@@ -119,6 +134,35 @@ app.delete("/conversations/:id", async (c) => {
   await c.env.DB.prepare("DELETE FROM conversations WHERE id = ? AND user_id = ?")
     .bind(id, userId)
     .run();
+  return c.json({ ok: true });
+});
+
+// Generic KV proxy — a durable, shared alternative to Login with ChatGPT's
+// default in-memory session store. Deliberately schema-agnostic (just get
+// /set/delete by key) so it isn't coupled to that library's session shape;
+// apps/web/lib/chatgpt-auth.ts owns the key naming and value shape.
+interface KVPutBody {
+  value: unknown;
+  ttlMs?: number;
+}
+
+app.get("/kv/:key", async (c) => {
+  const raw = await c.env.SESSIONS.get(c.req.param("key"));
+  if (raw === null) return c.json({ value: null }, 404);
+  return c.json({ value: JSON.parse(raw) });
+});
+
+app.put("/kv/:key", async (c) => {
+  const body = await c.req.json<KVPutBody>();
+  // Workers KV requires a minimum TTL of 60s; anything shorter just rounds up
+  // rather than erroring.
+  const expirationTtl = body.ttlMs ? Math.max(60, Math.ceil(body.ttlMs / 1000)) : undefined;
+  await c.env.SESSIONS.put(c.req.param("key"), JSON.stringify(body.value), { expirationTtl });
+  return c.json({ ok: true });
+});
+
+app.delete("/kv/:key", async (c) => {
+  await c.env.SESSIONS.delete(c.req.param("key"));
   return c.json({ ok: true });
 });
 

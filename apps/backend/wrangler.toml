@@ -12,3 +12,7 @@ ALLOWED_ORIGINS = "https://bettergpt-web-rouge.vercel.app,http://localhost:3000"
 binding = "DB"
 database_name = "bettergpt-history"
 database_id = "a31393f5-0e2a-4b7e-b228-b372e6affa38"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "e488870cee714e36b66bfb189278a4f8"
