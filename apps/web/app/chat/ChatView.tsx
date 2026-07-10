@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { streamText } from "ai";
 import { createChatGPTProxyProvider } from "@opencoredev/loginwithchatgpt-ai";
-import { useLoginWithChatGPT } from "@opencoredev/loginwithchatgpt-react";
+import type { ChatGPTUser } from "@opencoredev/loginwithchatgpt-react";
 import { useConversationStore, type ConversationNode } from "@/lib/conversation-store";
 import { ModelPicker } from "./ModelPicker";
 import { ChatThread } from "./ChatThread";
@@ -25,8 +25,12 @@ function pathToMessages(path: ConversationNode[]) {
   return messages;
 }
 
-export function ChatView() {
-  const { user, logout } = useLoginWithChatGPT();
+interface ChatViewProps {
+  user?: ChatGPTUser;
+  logout: () => Promise<void>;
+}
+
+export function ChatView({ user, logout }: ChatViewProps) {
 
   const currentId = useConversationStore((s) => s.currentId);
   const conversation = useConversationStore((s) =>

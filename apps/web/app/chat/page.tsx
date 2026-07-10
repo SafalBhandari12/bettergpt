@@ -7,7 +7,12 @@ import { ChatView } from "./ChatView";
 
 export default function ChatPage() {
   const router = useRouter();
-  const { status, isAuthenticated } = useLoginWithChatGPT();
+  // Called once here — `useLoginWithChatGPT` owns its own local state, so a
+  // second call in ChatView would be a second, independent copy of that
+  // state: calling `logout()` there would clear its own copy but never
+  // update this one, and this effect (which decides whether to redirect)
+  // would never see it. `user`/`logout` are passed down instead.
+  const { status, isAuthenticated, user, logout } = useLoginWithChatGPT();
 
   useEffect(() => {
     if (status !== "loading" && !isAuthenticated) {
@@ -23,5 +28,5 @@ export default function ChatPage() {
     );
   }
 
-  return <ChatView />;
+  return <ChatView user={user} logout={logout} />;
 }

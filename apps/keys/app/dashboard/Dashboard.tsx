@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useLoginWithChatGPT } from "@opencoredev/loginwithchatgpt-react";
+import type { ChatGPTUser } from "@opencoredev/loginwithchatgpt-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, CopyIcon, KeyIcon, RefreshIcon, TrashIcon } from "@/components/icons";
 import { CodeWindow } from "@/components/CodeWindow";
@@ -32,8 +32,12 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function Dashboard() {
-  const { user, logout } = useLoginWithChatGPT();
+interface DashboardProps {
+  user?: ChatGPTUser;
+  logout: () => Promise<void>;
+}
+
+export function Dashboard({ user, logout }: DashboardProps) {
   const queryClient = useQueryClient();
 
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
