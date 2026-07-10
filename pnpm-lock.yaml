@@ -14,18 +14,6 @@ importers:
 
   apps/backend:
     dependencies:
-      '@ai-sdk/openai':
-        specifier: ^4.0.8
-        version: 4.0.8(zod@4.4.3)
-      '@opencoredev/loginwithchatgpt-ai':
-        specifier: ^0.2.0
-        version: 0.2.0(@ai-sdk/openai@4.0.8(zod@4.4.3))(ai@7.0.17(zod@4.4.3))
-      '@opencoredev/loginwithchatgpt-core':
-        specifier: ^0.2.0
-        version: 0.2.0
-      ai:
-        specifier: ^7.0.17
-        version: 7.0.17(zod@4.4.3)
       hono:
         specifier: ^4.6.0
         version: 4.12.28
@@ -42,12 +30,27 @@ importers:
 
   apps/keys:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^4.0.8
+        version: 4.0.8(zod@4.4.3)
+      '@opencoredev/loginwithchatgpt-ai':
+        specifier: ^0.2.0
+        version: 0.2.0(@ai-sdk/openai@4.0.8(zod@4.4.3))(ai@7.0.17(zod@4.4.3))
+      '@opencoredev/loginwithchatgpt-core':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@opencoredev/loginwithchatgpt-react':
         specifier: ^0.2.0
         version: 0.2.0(react@19.2.4)
       '@opencoredev/loginwithchatgpt-server':
         specifier: ^0.2.0
         version: 0.2.0
+      '@tanstack/react-query':
+        specifier: ^5
+        version: 5.101.2(react@19.2.4)
+      ai:
+        specifier: ^7.0.17
+        version: 7.0.17(zod@4.4.3)
       next:
         specifier: 16.2.10
         version: 16.2.10(@babel/core@7.29.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -918,6 +921,14 @@ packages:
     resolution: {integrity: sha512-hwbzQuNUfcPvbegQFatVPl/MY/tcM9KLl963hQ5laJKPh81TEZ1+dNG9PirGvcaDBkp+BCshExAyKVPW91dozw==}
     peerDependencies:
       tailwindcss: '>=3.0.0 || >=4.0.0 || insiders'
+
+  '@tanstack/query-core@5.101.2':
+    resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
+
+  '@tanstack/react-query@5.101.2':
+    resolution: {integrity: sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@turbo/darwin-64@2.10.4':
     resolution: {integrity: sha512-m1MUEI4MJ69r5CwfMYxmHi0H0rrgiYCBOp0tgBZ9x/YVvOb5uu/lRIDyDwdtH054R2yWeQaIigUGu6aCX9f8cA==}
@@ -3464,6 +3475,13 @@ snapshots:
     dependencies:
       postcss-selector-parser: 6.0.10
       tailwindcss: 4.3.2
+
+  '@tanstack/query-core@5.101.2': {}
+
+  '@tanstack/react-query@5.101.2(react@19.2.4)':
+    dependencies:
+      '@tanstack/query-core': 5.101.2
+      react: 19.2.4
 
   '@turbo/darwin-64@2.10.4':
     optional: true

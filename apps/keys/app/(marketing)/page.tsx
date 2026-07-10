@@ -3,7 +3,7 @@ import { ArrowRightIcon, KeyIcon, PlugIcon, ShieldIcon, ZapIcon } from "@/compon
 import { CodeWindow } from "@/components/CodeWindow";
 
 const codeSample = `curl https://api.bettergpt.dev/v1/chat/completions \\
-  -H "Authorization: Bearer sk-bettergpt-••••••••" \\
+  -H "Authorization: Bearer sk-gptbridge-••••••••" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "gpt-5.5",

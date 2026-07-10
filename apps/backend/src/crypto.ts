@@ -54,13 +54,13 @@ export async function sha256Hex(value: string): Promise<string> {
     .join("");
 }
 
-/** A new API key: `sk-bettergpt-<48 hex chars>`, plus the prefix safe to display. */
+/** A new API key: `sk-gptbridge-<48 hex chars>`, plus the prefix safe to display. */
 export function randomApiKey(): { plaintext: string; prefix: string } {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   const token = Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  const plaintext = `sk-bettergpt-${token}`;
+  const plaintext = `sk-gptbridge-${token}`;
   const prefix = `${plaintext.slice(0, 18)}…`;
   return { plaintext, prefix };
 }

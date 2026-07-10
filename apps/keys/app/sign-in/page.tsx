@@ -19,7 +19,7 @@ export default function SignInPage() {
             href="/"
             className="text-sm font-medium text-zinc-500 hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
           >
-            &larr; BetterGPT API
+            &larr; GPTBridge
           </Link>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
             Sign in with ChatGPT
@@ -29,7 +29,7 @@ export default function SignInPage() {
           </p>
         </div>
 
-        <LoginWithChatGPT consent={{ appName: "BetterGPT API" }}>
+        <LoginWithChatGPT consent={{ appName: "GPTBridge" }}>
           {(state) => (
             <SignInFlow
               state={state}
@@ -152,7 +152,7 @@ function SignInFlow({
       {!consented ? (
         <div className="rounded-2xl border border-black/[.08] bg-white p-6 text-sm dark:border-white/[.145] dark:bg-zinc-950">
           <p className="text-zinc-600 dark:text-zinc-400">
-            Signing in lets BetterGPT API generate a key that can send chat requests on your
+            Signing in lets GPTBridge generate a key that can send chat requests on your
             ChatGPT plan until you revoke it. Only continue if you trust this app with that
             access.
           </p>

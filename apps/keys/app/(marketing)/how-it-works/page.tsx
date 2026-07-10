@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRightIcon, KeyIcon, ShieldIcon } from "@/components/icons";
 
 export const metadata = {
-  title: "How it works — BetterGPT API",
+  title: "How it works — GPTBridge",
 };
 
 export default function HowItWorksPage() {
@@ -12,7 +12,7 @@ export default function HowItWorksPage() {
         Explained simply
       </span>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight text-black sm:text-4xl dark:text-zinc-50">
-        How BetterGPT API actually works
+        How GPTBridge actually works
       </h1>
       <p className="mt-4 text-lg leading-8 text-zinc-600 dark:text-zinc-400">
         No jargon — here&rsquo;s exactly what happens from the moment you sign in to the moment
@@ -27,7 +27,7 @@ export default function HowItWorksPage() {
           <p className="mt-3 leading-7 text-zinc-600 dark:text-zinc-400">
             You already have a ChatGPT account — Free, Plus, or Pro. That account can talk to
             OpenAI&rsquo;s models. Normally, only the ChatGPT website and app do that talking for
-            you. BetterGPT API signs in as you (with your permission) and gives you a key that
+            you. GPTBridge signs in as you (with your permission) and gives you a key that
             lets{" "}
             <span className="font-medium text-black dark:text-zinc-200">any other app</span> talk
             to those same models, using your same account — no separate OpenAI API subscription,
@@ -84,7 +84,7 @@ export default function HowItWorksPage() {
                 <p className="mt-1 leading-7 text-zinc-600 dark:text-zinc-400">
                   This is a random string starting with{" "}
                   <code className="rounded bg-black/[.05] px-1 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-                    sk-bettergpt-
+                    sk-gptbridge-
                   </code>
                   . It doesn&rsquo;t contain your login token — it&rsquo;s just a lookup code that
                   points back to your account on our server. We show it to you once. After that,

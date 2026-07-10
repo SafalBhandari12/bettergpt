@@ -1,4 +1,4 @@
-# BetterGPT API
+# GPTBridge
 
 Sign in with your ChatGPT account, get a standard OpenAI-compatible `sk-`
 API key, use it in any tool that speaks the Chat Completions format —
@@ -7,19 +7,23 @@ billed to your existing ChatGPT plan, no separate API subscription.
 This is one of three apps in the [BetterGPT monorepo](../../README.md):
 
 - **This app (`apps/keys`)** — landing page, sign-in, dashboard (create /
-  regenerate / revoke your key), and a playground to try it without writing
-  code.
+  regenerate / revoke your key, try it in an embedded playground), and the
+  public `/v1/chat/completions` + `/v1/models` gateway your key calls. The
+  actual request to OpenAI happens here (Vercel), not in the Worker — see
+  `lib/gateway-tokens.ts` for why.
 - **[`apps/backend`](../backend)** — the Cloudflare Worker + D1 + KV that
-  this app talks to. It stores your (encrypted) ChatGPT tokens, your hashed
-  API key, and exposes the public `/v1/chat/completions` + `/v1/models`
-  gateway your key calls.
+  this app talks to. Pure storage: your (encrypted) ChatGPT tokens, your
+  hashed API key, and session storage for sign-in. No outbound calls to
+  OpenAI happen here — a Cloudflare Worker calling chatgpt.com (also
+  Cloudflare-fronted) trips OpenAI's bot protection.
 - **[`apps/web`](../web)** — a separate chat app (branching conversations).
   Not required for this app to work.
 
-See [How it works](https://your-deployment/how-it-works) and
-[Security](https://your-deployment/security) on the live site for a plain-
-language explanation of the design and its trade-offs — read the security
-page before you point real traffic at any instance of this, including your
+See [How it works](https://bettergpt-keys.vercel.app/how-it-works) and
+[Security](https://bettergpt-keys.vercel.app/security) on the live site
+(or the equivalent pages on your own deployment) for a plain-language
+explanation of the design and its trade-offs — read the security page
+before you point real traffic at any instance of this, including your
 own.
 
 ## Self-hosting your own instance
@@ -33,7 +37,9 @@ ever touch infrastructure you control.
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier is enough)
 - Node 18+ and [pnpm](https://pnpm.io)
 - The [`wrangler`](https://developers.cloudflare.com/workers/wrangler/) CLI (`pnpm dlx wrangler login`)
-- Somewhere to host a Next.js app (Vercel is the easiest; any Node host works)
+- Somewhere to host a Next.js app (Vercel is the easiest; any Node host works
+  — but see the note above: it needs to run somewhere OTHER than Cloudflare
+  Workers, since that's what trips OpenAI's bot protection)
 
 ### 2. Clone and install
 
@@ -43,7 +49,7 @@ cd bettergpt
 pnpm install
 ```
 
-### 3. Stand up the backend (Worker + D1 + KV)
+### 3. Stand up the backend (Worker + D1 + KV — storage only)
 
 ```bash
 cd apps/backend
@@ -69,12 +75,12 @@ you'll need it next.
 
 Set these in your host's environment (e.g. Vercel project settings):
 
-| Variable                  | Value                                                          |
-| -------------------------- | --------------------------------------------------------------- |
-| `LWC_SECRET`               | A random secret, unique to this app (`openssl rand -hex 32`)    |
-| `BACKEND_URL`               | Your deployed Worker's URL from step 3                          |
-| `INTERNAL_SECRET`           | Must exactly match the Worker's `INTERNAL_SECRET` secret        |
-| `NEXT_PUBLIC_GATEWAY_URL`   | Your Worker's URL + `/v1` — shown in the dashboard's code snippets |
+| Variable                  | Value                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `LWC_SECRET`               | A random secret, unique to this app (`openssl rand -hex 32`)          |
+| `BACKEND_URL`               | Your deployed Worker's URL from step 3                                |
+| `INTERNAL_SECRET`           | Must exactly match the Worker's `INTERNAL_SECRET` secret              |
+| `NEXT_PUBLIC_GATEWAY_URL`   | This app's own deployed URL + `/v1` — e.g. `https://your-app.vercel.app/v1` |
 
 Then deploy:
 
@@ -101,4 +107,5 @@ own secrets before deploying anywhere real.
 `.github/workflows/deploy-backend.yml` deploys `apps/backend` to Cloudflare
 on every push to `main` that touches it. It expects two repo secrets:
 `CLOUDFLARE_API_TOKEN` (Workers Scripts:Edit + D1:Edit permissions) and
-`CLOUDFLARE_ACCOUNT_ID`.
+`CLOUDFLARE_ACCOUNT_ID`. `apps/keys` itself deploys via Vercel's own git
+integration (or manually with `vercel --prod`).

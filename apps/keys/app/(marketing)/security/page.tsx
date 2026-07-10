@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ShieldIcon } from "@/components/icons";
 
 export const metadata = {
-  title: "Security — BetterGPT API",
+  title: "Security — GPTBridge",
 };
 
 function Callout({
@@ -53,7 +53,7 @@ export default function SecurityPage() {
       <div className="mt-10 flex flex-col gap-6">
         <Callout tone="amber" title="This is not an official OpenAI product">
           <p>
-            BetterGPT API signs in using the same OAuth flow OpenAI&rsquo;s own Codex CLI uses,
+            GPTBridge signs in using the same OAuth flow OpenAI&rsquo;s own Codex CLI uses,
             then talks to the ChatGPT-backed model API on your behalf. That path is meant for
             OpenAI&rsquo;s official client, not third-party proxies like this one. It could stop
             working if OpenAI changes how that works, and using automated or third-party access to
