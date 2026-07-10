@@ -90,6 +90,18 @@ vercel link      # or: build with `pnpm --filter keys build` for another host
 vercel --prod
 ```
 
+If you'd rather have Vercel auto-deploy on every push instead of running
+`vercel --prod` manually (`vercel git connect` from `apps/keys`, or connect
+the repo from the dashboard), set **Project Settings → Build and
+Deployment → Root Directory** to `apps/keys` and check **"Include files
+outside the root directory in the Build Step"** — this is a pnpm workspace
+monorepo, so the build needs the root `pnpm-lock.yaml`/`pnpm-workspace.yaml`
+and hoisted `node_modules`, not just what's inside `apps/keys`. Without
+this, Git-triggered builds try to build from the repo root (the Turborepo
+root, not a deployable app) and fail — CLI deploys don't hit this because
+they upload the `apps/keys` folder directly, bypassing the setting
+entirely.
+
 ### 5. Run it locally instead
 
 ```bash
