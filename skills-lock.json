@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/login-with-chatgpt/SKILL.md",
       "computedHash": "71aadb39832f586c043ef85a439a2a4360a98b1962bce51c85c1764578426f7c"
+    },
+    "remotion-best-practices": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/remotion/SKILL.md",
+      "computedHash": "5284f294f0bad7c1217d24af5044a5c672d9202b218331db33e833d64ce121a4"
     }
   }
 }

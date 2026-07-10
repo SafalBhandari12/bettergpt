@@ -1,14 +1,52 @@
 import Link from "next/link";
 import { ArrowRightIcon, KeyIcon, PlugIcon, ShieldIcon, ZapIcon } from "@/components/icons";
-import { CodeWindow } from "@/components/CodeWindow";
+import { TabbedCodeWindow } from "@/components/TabbedCodeWindow";
 
-const codeSample = `curl https://api.bettergpt.dev/v1/chat/completions \\
-  -H "Authorization: Bearer sk-gptbridge-••••••••" \\
+const GATEWAY_URL = "https://api.bettergpt.dev/v1";
+const DISPLAY_KEY = "sk-gptbridge-••••••••";
+
+const codeTabs = [
+  {
+    label: "curl",
+    code: `curl ${GATEWAY_URL}/chat/completions \\
+  -H "Authorization: Bearer ${DISPLAY_KEY}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "gpt-5.5",
     "messages": [{ "role": "user", "content": "Hello!" }]
-  }'`;
+  }'`,
+  },
+  {
+    label: "python",
+    code: `from openai import OpenAI
+
+client = OpenAI(
+    api_key="${DISPLAY_KEY}",
+    base_url="${GATEWAY_URL}",
+)
+
+response = client.chat.completions.create(
+    model="gpt-5.5",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(response.choices[0].message.content)`,
+  },
+  {
+    label: "typescript",
+    code: `import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "${DISPLAY_KEY}",
+  baseURL: "${GATEWAY_URL}",
+});
+
+const response = await client.chat.completions.create({
+  model: "gpt-5.5",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+console.log(response.choices[0].message.content);`,
+  },
+];
 
 const features = [
   {
@@ -87,7 +125,7 @@ export default function Home() {
           </div>
 
           <div className="w-full">
-            <CodeWindow title="terminal">{codeSample}</CodeWindow>
+            <TabbedCodeWindow tabs={codeTabs} />
           </div>
         </div>
       </section>
