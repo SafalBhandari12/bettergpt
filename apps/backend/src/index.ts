@@ -6,6 +6,7 @@ import { conversations } from "./conversations";
 import { kv } from "./kv";
 import { keys } from "./keys";
 import { gateway } from "./gateway";
+import { playground } from "./playground";
 
 const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:3000"];
 
@@ -33,9 +34,11 @@ app.use("/conversations/*", requireInternalSecret);
 app.use("/kv/*", requireInternalSecret);
 app.use("/keys", requireInternalSecret);
 app.use("/keys/*", requireInternalSecret);
+app.use("/playground/*", requireInternalSecret);
 app.route("/conversations", conversations);
 app.route("/kv", kv);
 app.route("/keys", keys);
+app.route("/playground", playground);
 
 // Public OpenAI-compatible gateway — authenticated by the sk- API key itself,
 // meant to be called directly by arbitrary third-party tools.

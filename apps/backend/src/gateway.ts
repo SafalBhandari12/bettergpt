@@ -1,15 +1,12 @@
 import { Hono, type Context } from "hono";
-import { createChatGPT, type ChatGPTProvider } from "@opencoredev/loginwithchatgpt-ai";
+import type { ChatGPTProvider } from "@opencoredev/loginwithchatgpt-ai";
 import { streamText, generateText } from "ai";
 import type { Env, Variables } from "./env";
-import { decryptJson, encryptJson, sha256Hex } from "./crypto";
+import { sha256Hex } from "./crypto";
+import { getChatGPTProviderForUser } from "./oauth-provider";
+import { toCoreMessages, type ChatMessage, type CoreMessage } from "./messages";
 
 type GatewayContext = Context<{ Bindings: Env; Variables: Variables }>;
-
-interface ChatMessage {
-  role: string;
-  content: unknown;
-}
 
 interface ChatCompletionsRequestBody {
   model?: string;
@@ -17,7 +14,7 @@ interface ChatCompletionsRequestBody {
   stream?: boolean;
 }
 
-function openAIError(message: string, type = "invalid_request_error") {
+export function openAIError(message: string, type = "invalid_request_error") {
   return { error: { message, type } };
 }
 
@@ -40,55 +37,16 @@ async function resolveGatewayAuth(
   if (!keyRow) return c.json(openAIError("Invalid API key"), 401);
   const userId = keyRow.user_id;
 
-  const tokenRow = await c.env.DB.prepare(
-    "SELECT access_token, refresh_token, expires_at FROM oauth_tokens WHERE user_id = ?",
-  )
-    .bind(userId)
-    .first<{ access_token: string; refresh_token: string | null; expires_at: number | null }>();
-  if (!tokenRow) {
+  const chatgpt = await getChatGPTProviderForUser(c.env.DB, c.env.TOKEN_ENCRYPTION_KEY, userId);
+  if (!chatgpt) {
     return c.json(openAIError("No ChatGPT session linked to this key", "server_error"), 500);
   }
-
-  const accessToken = await decryptJson<string>(tokenRow.access_token, c.env.TOKEN_ENCRYPTION_KEY);
-  const refreshToken = tokenRow.refresh_token
-    ? await decryptJson<string>(tokenRow.refresh_token, c.env.TOKEN_ENCRYPTION_KEY)
-    : undefined;
-
-  const chatgpt = createChatGPT({
-    credentials: { accessToken, refreshToken, accountId: userId, expiresAt: tokenRow.expires_at ?? undefined },
-    onRefresh: async (fresh) => {
-      const now = Date.now();
-      const encAccess = await encryptJson(fresh.accessToken, c.env.TOKEN_ENCRYPTION_KEY);
-      const encRefresh = fresh.refreshToken
-        ? await encryptJson(fresh.refreshToken, c.env.TOKEN_ENCRYPTION_KEY)
-        : null;
-      await c.env.DB.prepare(
-        "UPDATE oauth_tokens SET access_token = ?, refresh_token = COALESCE(?, refresh_token), expires_at = ?, updated_at = ? WHERE user_id = ?",
-      )
-        .bind(encAccess, encRefresh, fresh.expiresAt ?? null, now, userId)
-        .run();
-    },
-  });
 
   await c.env.DB.prepare("UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?")
     .bind(Date.now(), keyHash)
     .run();
 
   return { userId, chatgpt };
-}
-
-function toCoreMessages(
-  raw: ChatMessage[],
-): { role: "system" | "user" | "assistant"; content: string }[] {
-  return raw.map((m) => {
-    if (m.role !== "system" && m.role !== "user" && m.role !== "assistant") {
-      throw new Error(`Unsupported role: ${m.role}`);
-    }
-    if (typeof m.content !== "string") {
-      throw new Error("Only string message content is supported");
-    }
-    return { role: m.role, content: m.content };
-  });
 }
 
 export const gateway = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -103,7 +61,7 @@ gateway.post("/chat/completions", async (c) => {
     return c.json(openAIError("Expected { messages: [...] }"), 400);
   }
 
-  let messages: { role: "system" | "user" | "assistant"; content: string }[];
+  let messages: CoreMessage[];
   try {
     messages = toCoreMessages(body.messages);
   } catch (err) {

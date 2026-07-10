@@ -134,12 +134,22 @@ console.log(response.choices[0].message.content);`;
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-black">
       <header className="flex items-center justify-between border-b border-black/[.08] px-6 py-3 dark:border-white/[.145]">
-        <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-black dark:text-zinc-50">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-accent-foreground">
-            <KeyIcon className="h-3.5 w-3.5" />
-          </span>
-          BetterGPT API
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-black dark:text-zinc-50">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-accent-foreground">
+              <KeyIcon className="h-3.5 w-3.5" />
+            </span>
+            BetterGPT API
+          </Link>
+          <nav className="flex items-center gap-1 rounded-full bg-zinc-100 p-0.5 text-xs dark:bg-zinc-900">
+            <span className="rounded-full bg-white px-3 py-1 font-medium text-black shadow-sm dark:bg-zinc-700 dark:text-zinc-50">
+              Dashboard
+            </span>
+            <Link href="/playground" className="rounded-full px-3 py-1 font-medium text-zinc-500 dark:text-zinc-400">
+              Playground
+            </Link>
+          </nav>
+        </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-xs text-zinc-500 sm:inline dark:text-zinc-400">
             {user?.name ?? user?.email ?? "Signed in"}

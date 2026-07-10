@@ -7,7 +7,11 @@ OpenAI-compatible API key. Turborepo monorepo with three apps:
 - **`apps/web`** — the Next.js chat frontend (branching/merge graph, history
   sidebar, login with ChatGPT).
 - **`apps/keys`** — a Next.js app where you sign in with ChatGPT and get a
-  `sk-` API key, usable as a drop-in `OPENAI_API_KEY` anywhere.
+  `sk-` API key, usable as a drop-in `OPENAI_API_KEY` anywhere. Has a
+  playground to try it without writing code, and its own
+  [README](apps/keys/README.md) with **self-hosting instructions** if you'd
+  rather run your own instance than trust a hosted one with your ChatGPT
+  tokens.
 - **`apps/backend`** — a Cloudflare Worker + D1 + KV that both frontends
   share: conversation history storage, session storage, API-key management,
   and the public OpenAI-compatible gateway (`/v1/chat/completions`,
@@ -99,3 +103,7 @@ Set these in the host's environment:
 
 CI (`.github/workflows/deploy-backend.yml`) auto-deploys `apps/backend` to
 Cloudflare on every push to `main` that touches it.
+
+For a full step-by-step self-hosting walkthrough of the API-key product
+specifically (your own Cloudflare + Vercel, your own secrets), see
+[`apps/keys/README.md`](apps/keys/README.md).
