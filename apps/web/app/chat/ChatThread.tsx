@@ -36,13 +36,22 @@ export function ChatThread({ disabled, onSend, onOpenBranches }: ChatThreadProps
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="thin-scrollbar min-h-0 flex-1 overflow-y-auto"
+      >
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
           {!rootId ? (
-            <p className="pt-16 text-center text-sm text-zinc-400">
-              Send a message to start. Hover any reply to branch it, or highlight text to branch
-              from that exact point.
-            </p>
+            <div className="flex flex-col items-center gap-2 pt-24 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white">
+                AI
+              </div>
+              <p className="mt-2 text-sm text-zinc-400">
+                Send a message to start. Hover any reply to branch it, or highlight text to
+                branch from that exact point.
+              </p>
+            </div>
           ) : (
             path.map((message) => (
               <MessageBubble

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConversationStore } from "@/lib/conversation-store";
-import { useConversationTree } from "@/lib/use-conversation-tree";
+import { useConversationTree, EMPTY_NODES } from "@/lib/use-conversation-tree";
 import { layoutTree, NODE_WIDTH, NODE_HEIGHT } from "@/lib/tree-layout";
 import { CloseIcon } from "@/components/icons";
 
@@ -14,13 +14,17 @@ interface DragState {
 }
 
 export function BranchGraph() {
-  const nodes = useConversationStore((s) => s.nodes);
-  const rootId = useConversationStore((s) => s.rootId);
-  const activeNodeId = useConversationStore((s) => s.activeNodeId);
+  const conversation = useConversationStore((s) =>
+    s.currentId ? s.conversations[s.currentId] : null,
+  );
   const focusBranch = useConversationStore((s) => s.focusBranch);
   const mergeBranches = useConversationStore((s) => s.mergeBranches);
   const removeNode = useConversationStore((s) => s.removeNode);
   const { path } = useConversationTree();
+
+  const nodes = conversation?.nodes ?? EMPTY_NODES;
+  const rootId = conversation?.rootId ?? null;
+  const activeNodeId = conversation?.activeNodeId ?? null;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -112,7 +116,7 @@ export function BranchGraph() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 justify-center overflow-auto p-8">
+      <div className="thin-scrollbar flex min-h-0 flex-1 justify-center overflow-auto p-8">
         <div ref={containerRef} className="relative shrink-0" style={{ width, height }}>
           <svg
             className="pointer-events-none absolute inset-0 overflow-visible"
@@ -175,7 +179,6 @@ export function BranchGraph() {
           </svg>
 
           {graphNodes.map((n) => {
-            const isUser = n.message.role === "user";
             const isActiveLeaf = n.id === activeNodeId;
             const onActivePath = activePathIds.has(n.id);
             const isMerged = (n.message.mergedFromIds?.length ?? 0) > 0;
@@ -193,9 +196,9 @@ export function BranchGraph() {
                     focusBranch(n.id);
                   }
                 }}
-                title={n.message.content || undefined}
+                title={[n.message.prompt, n.message.response].filter(Boolean).join("\n\n") || undefined}
                 style={{ left: n.x, top: n.y, width: NODE_WIDTH, height: NODE_HEIGHT }}
-                className={`absolute flex cursor-pointer flex-col gap-1 rounded-xl border px-3 py-2 text-left shadow-sm transition-colors ${
+                className={`absolute flex cursor-pointer flex-col gap-1 rounded-2xl border px-3 py-2 text-left shadow-sm transition-colors ${
                   isDropTarget
                     ? "border-violet-600 bg-violet-50 ring-2 ring-violet-600/40 dark:border-violet-400 dark:bg-violet-500/10"
                     : isActiveLeaf
@@ -217,12 +220,8 @@ export function BranchGraph() {
                 </button>
 
                 <span className="flex items-center gap-1">
-                  <span
-                    className={`text-[10px] font-semibold uppercase tracking-wide ${
-                      isUser ? "text-zinc-400" : "text-emerald-600 dark:text-emerald-400"
-                    }`}
-                  >
-                    {isUser ? "You" : (n.message.model ?? "Assistant")}
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                    {n.message.model ?? "Turn"}
                   </span>
                   {isMerged && (
                     <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
@@ -230,8 +229,11 @@ export function BranchGraph() {
                     </span>
                   )}
                 </span>
-                <span className="line-clamp-3 text-xs leading-4 text-zinc-700 dark:text-zinc-300">
-                  {n.message.content || "…"}
+                <span className="line-clamp-2 text-xs font-medium leading-4 text-zinc-700 dark:text-zinc-300">
+                  {n.message.prompt || "…"}
+                </span>
+                <span className="line-clamp-2 text-xs leading-4 text-zinc-500 dark:text-zinc-500">
+                  {n.message.response || (n.message.status === "streaming" ? "…" : "")}
                 </span>
 
                 <button

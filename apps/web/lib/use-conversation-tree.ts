@@ -3,23 +3,32 @@
 import { useMemo } from "react";
 import { useConversationStore, type ConversationNode } from "./conversation-store";
 
+/** Stable fallback so `nodes` doesn't get a fresh `{}` identity every render
+ * while there's no current conversation yet. */
+export const EMPTY_NODES: Record<string, ConversationNode> = {};
+
 /**
  * Shared by the Chat and Branches tabs: the active path (root → focused
  * leaf) plus a parentId -> children lookup, built once per tree change
  * instead of each message bubble scanning the whole tree itself.
  */
 export function useConversationTree() {
-  const nodes = useConversationStore((s) => s.nodes);
-  const rootId = useConversationStore((s) => s.rootId);
-  const activeNodeId = useConversationStore((s) => s.activeNodeId);
+  const currentId = useConversationStore((s) => s.currentId);
+  const conversation = useConversationStore((s) =>
+    s.currentId ? s.conversations[s.currentId] : null,
+  );
   const getPath = useConversationStore((s) => s.getPath);
+
+  const nodes = conversation?.nodes ?? EMPTY_NODES;
+  const rootId = conversation?.rootId ?? null;
+  const activeNodeId = conversation?.activeNodeId ?? null;
 
   // `nodes` isn't read directly here, but it must stay a dependency so this
   // recomputes on every streamed token (getPath reads live store state).
   const path = useMemo(
     () => (activeNodeId ? getPath(activeNodeId) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeNodeId, nodes, getPath],
+    [activeNodeId, nodes, getPath, currentId],
   );
 
   const childrenByParent = useMemo(() => {
@@ -40,5 +49,5 @@ export function useConversationTree() {
     return childrenByParent.get(message.parentId ?? "root") ?? [message];
   }
 
-  return { rootId, path, siblingsOf };
+  return { rootId, nodes, path, siblingsOf };
 }

@@ -1,8 +1,8 @@
 import type { ConversationNode } from "./conversation-store";
 
-export const NODE_WIDTH = 220;
-export const NODE_HEIGHT = 92;
-const H_GAP = 28;
+export const NODE_WIDTH = 240;
+export const NODE_HEIGHT = 124;
+const H_GAP = 32;
 const V_GAP = 64;
 
 export interface GraphNode {

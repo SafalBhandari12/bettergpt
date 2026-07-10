@@ -5,11 +5,17 @@ import { createJSONStorage, persist, type StateStorage } from "zustand/middlewar
 
 export type NodeStatus = "streaming" | "done" | "error";
 
+/**
+ * One conversational turn: the user's prompt and the model's response live on
+ * the same node. Branching, merging, and the tree layout all operate on
+ * turns, not on separate user/assistant messages — a turn is the smallest
+ * unit you can fork from or delete.
+ */
 export interface ConversationNode {
   id: string;
   parentId: string | null;
-  role: "user" | "assistant";
-  content: string;
+  prompt: string;
+  response: string;
   model?: string;
   status: NodeStatus;
   createdAt: number;
@@ -17,20 +23,42 @@ export interface ConversationNode {
    * Set on a merge node: the ids of the other branch tips folded into it
    * (in addition to `parentId`, its primary/continuing branch). Purely
    * additive metadata — `parentId` still defines the tree structure and
-   * `getPath`, so a merge node's own content carries the other branches'
+   * `getPath`, so a merge node's own prompt carries the other branches'
    * context as text (see `mergeBranches`).
    */
   mergedFromIds?: string[];
 }
 
-interface ConversationState {
+export interface ConversationMeta {
+  id: string;
+  title: string;
+  updatedAt: number;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  updatedAt: number;
   nodes: Record<string, ConversationNode>;
   rootId: string | null;
   activeNodeId: string | null;
+}
+
+interface ConversationState {
+  conversations: Record<string, Conversation>;
+  /** Conversation ids, most-recently-updated first. */
+  order: string[];
+  currentId: string | null;
   pendingQuote: string | null;
-  addUserNode: (parentId: string | null, content: string) => string;
-  addAssistantNode: (parentId: string, model: string) => string;
-  appendToNode: (id: string, delta: string) => void;
+
+  newConversation: () => string;
+  switchConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
+  /** Upserts a full conversation, e.g. after loading one from the backend. */
+  hydrateConversation: (conversation: Conversation) => void;
+
+  addTurn: (parentId: string | null, prompt: string, model: string) => string;
+  appendResponse: (id: string, delta: string) => void;
   setNodeStatus: (id: string, status: NodeStatus) => void;
   setActiveNode: (id: string) => void;
   branchFrom: (nodeId: string, quote?: string) => void;
@@ -38,7 +66,6 @@ interface ConversationState {
   mergeBranches: (nodeIds: string[]) => string;
   removeNode: (id: string) => void;
   clearPendingQuote: () => void;
-  reset: () => void;
   getPath: (nodeId: string) => ConversationNode[];
 }
 
@@ -46,6 +73,22 @@ function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
+}
+
+function titleFromPrompt(prompt: string): string {
+  const oneLine = prompt.trim().split("\n")[0] ?? "";
+  return oneLine.length > 48 ? `${oneLine.slice(0, 48)}…` : oneLine || "New chat";
+}
+
+function emptyConversation(id: string): Conversation {
+  return {
+    id,
+    title: "New chat",
+    updatedAt: Date.now(),
+    nodes: {},
+    rootId: null,
+    activeNodeId: null,
+  };
 }
 
 /**
@@ -80,82 +123,157 @@ function latestLeafId(nodes: Record<string, ConversationNode>, id: string): stri
   }
 }
 
+/** Moves `id` to the front of `order`, inserting it if it isn't already there. */
+function bumpOrder(order: string[], id: string): string[] {
+  return [id, ...order.filter((existing) => existing !== id)];
+}
+
 export const useConversationStore = create<ConversationState>()(
   persist(
     (set, get) => ({
-      nodes: {},
-      rootId: null,
-      activeNodeId: null,
+      conversations: {},
+      order: [],
+      currentId: null,
       pendingQuote: null,
 
-      addUserNode: (parentId, content) => {
+      newConversation: () => {
         const id = makeId();
-        const node: ConversationNode = {
-          id,
-          parentId,
-          role: "user",
-          content,
-          status: "done",
-          createdAt: Date.now(),
-        };
+        const conversation = emptyConversation(id);
         set((state) => ({
-          nodes: { ...state.nodes, [id]: node },
-          rootId: state.rootId ?? id,
-          activeNodeId: id,
+          conversations: { ...state.conversations, [id]: conversation },
+          order: bumpOrder(state.order, id),
+          currentId: id,
+          pendingQuote: null,
         }));
         return id;
       },
 
-      addAssistantNode: (parentId, model) => {
+      switchConversation: (id) => {
+        if (!get().conversations[id]) return;
+        set({ currentId: id, pendingQuote: null });
+      },
+
+      deleteConversation: (id) => {
+        const { conversations, order, currentId } = get();
+        if (!conversations[id]) return;
+        const remaining = { ...conversations };
+        delete remaining[id];
+        const remainingOrder = order.filter((existing) => existing !== id);
+        const nextCurrentId = currentId === id ? (remainingOrder[0] ?? null) : currentId;
+        set({
+          conversations: remaining,
+          order: remainingOrder,
+          currentId: nextCurrentId,
+        });
+      },
+
+      hydrateConversation: (conversation) => {
+        set((state) => ({
+          conversations: { ...state.conversations, [conversation.id]: conversation },
+          order: bumpOrder(state.order, conversation.id),
+        }));
+      },
+
+      addTurn: (parentId, prompt, model) => {
+        const { currentId, conversations } = get();
+        if (!currentId) return "";
+        const conversation = conversations[currentId];
+        if (!conversation) return "";
+
         const id = makeId();
         const node: ConversationNode = {
           id,
           parentId,
-          role: "assistant",
-          content: "",
+          prompt,
+          response: "",
           model,
           status: "streaming",
           createdAt: Date.now(),
         };
-        set((state) => ({
-          nodes: { ...state.nodes, [id]: node },
+        const isFirstTurn = conversation.rootId === null;
+        const updated: Conversation = {
+          ...conversation,
+          nodes: { ...conversation.nodes, [id]: node },
+          rootId: conversation.rootId ?? id,
           activeNodeId: id,
+          title: isFirstTurn ? titleFromPrompt(prompt) : conversation.title,
+          updatedAt: Date.now(),
+        };
+        set((state) => ({
+          conversations: { ...state.conversations, [currentId]: updated },
+          order: bumpOrder(state.order, currentId),
         }));
         return id;
       },
 
-      appendToNode: (id, delta) => {
-        set((state) => {
-          const existing = state.nodes[id];
-          if (!existing) return state;
-          return {
-            nodes: {
-              ...state.nodes,
-              [id]: { ...existing, content: existing.content + delta },
+      appendResponse: (id, delta) => {
+        const { currentId, conversations } = get();
+        if (!currentId) return;
+        const conversation = conversations[currentId];
+        const existing = conversation?.nodes[id];
+        if (!conversation || !existing) return;
+        set((state) => ({
+          conversations: {
+            ...state.conversations,
+            [currentId]: {
+              ...conversation,
+              nodes: {
+                ...conversation.nodes,
+                [id]: { ...existing, response: existing.response + delta },
+              },
             },
-          };
-        });
+          },
+        }));
       },
 
       setNodeStatus: (id, status) => {
-        set((state) => {
-          const existing = state.nodes[id];
-          if (!existing) return state;
-          return { nodes: { ...state.nodes, [id]: { ...existing, status } } };
-        });
+        const { currentId, conversations } = get();
+        if (!currentId) return;
+        const conversation = conversations[currentId];
+        const existing = conversation?.nodes[id];
+        if (!conversation || !existing) return;
+        set((state) => ({
+          conversations: {
+            ...state.conversations,
+            [currentId]: {
+              ...conversation,
+              nodes: { ...conversation.nodes, [id]: { ...existing, status } },
+              updatedAt: Date.now(),
+            },
+          },
+        }));
       },
 
-      setActiveNode: (id) => set({ activeNodeId: id }),
+      setActiveNode: (id) => {
+        const { currentId, conversations } = get();
+        if (!currentId || !conversations[currentId]) return;
+        set((state) => ({
+          conversations: {
+            ...state.conversations,
+            [currentId]: { ...conversations[currentId], activeNodeId: id },
+          },
+        }));
+      },
 
-      branchFrom: (nodeId, quote) => set({ activeNodeId: nodeId, pendingQuote: quote ?? null }),
+      branchFrom: (nodeId, quote) => {
+        get().setActiveNode(nodeId);
+        set({ pendingQuote: quote ?? null });
+      },
 
       focusBranch: (nodeId) => {
-        const { nodes } = get();
-        set({ activeNodeId: latestLeafId(nodes, nodeId) });
+        const { currentId, conversations } = get();
+        if (!currentId) return;
+        const conversation = conversations[currentId];
+        if (!conversation) return;
+        get().setActiveNode(latestLeafId(conversation.nodes, nodeId));
       },
 
       mergeBranches: (nodeIds) => {
-        const { nodes, getPath } = get();
+        const { currentId, conversations, getPath } = get();
+        if (!currentId) return "";
+        const conversation = conversations[currentId];
+        if (!conversation) return "";
+
         const [primaryId, ...otherIds] = nodeIds;
         const primaryPath = getPath(primaryId);
 
@@ -171,14 +289,12 @@ export const useConversationStore = create<ConversationState>()(
           }
           const unique = otherPath.slice(divergeAt);
           const transcript = unique.length
-            ? unique
-                .map((n) => `${n.role === "user" ? "User" : "Assistant"}: ${n.content}`)
-                .join("\n\n")
+            ? unique.map((n) => `User: ${n.prompt}\n\nAssistant: ${n.response}`).join("\n\n")
             : "(no additional messages beyond the shared history)";
           return `Branch ${i + 2}:\n${transcript}`;
         });
 
-        const content = `Merging in context from ${otherIds.length} other branch${
+        const prompt = `Merging in context from ${otherIds.length} other branch${
           otherIds.length > 1 ? "es" : ""
         }:\n\n${sections.join("\n\n")}\n\n---\nPlease take all of the above into account going forward.`;
 
@@ -186,36 +302,48 @@ export const useConversationStore = create<ConversationState>()(
         const node: ConversationNode = {
           id,
           parentId: primaryId,
-          role: "user",
-          content,
+          prompt,
+          response: "",
           status: "done",
           createdAt: Date.now(),
           mergedFromIds: otherIds,
         };
-        set({ nodes: { ...nodes, [id]: node }, activeNodeId: id });
+        set((state) => ({
+          conversations: {
+            ...state.conversations,
+            [currentId]: {
+              ...conversation,
+              nodes: { ...conversation.nodes, [id]: node },
+              activeNodeId: id,
+              updatedAt: Date.now(),
+            },
+          },
+        }));
         return id;
       },
 
       removeNode: (id) => {
-        const { nodes, rootId, activeNodeId } = get();
-        const target = nodes[id];
-        if (!target) return;
+        const { currentId, conversations } = get();
+        if (!currentId) return;
+        const conversation = conversations[currentId];
+        const target = conversation?.nodes[id];
+        if (!conversation || !target) return;
 
         // Cascade: deleting a node deletes its whole subtree (that branch's
-        // entire continuation), not just the one message.
+        // entire continuation), not just the one turn.
         const toRemove = new Set<string>();
         const stack = [id];
         while (stack.length) {
           const cur = stack.pop()!;
           if (toRemove.has(cur)) continue;
           toRemove.add(cur);
-          for (const n of Object.values(nodes)) {
+          for (const n of Object.values(conversation.nodes)) {
             if (n.parentId === cur) stack.push(n.id);
           }
         }
 
         const remainingNodes: Record<string, ConversationNode> = {};
-        for (const [nodeId, node] of Object.entries(nodes)) {
+        for (const [nodeId, node] of Object.entries(conversation.nodes)) {
           if (toRemove.has(nodeId)) continue;
           if (node.mergedFromIds?.some((mid) => toRemove.has(mid))) {
             const mergedFromIds = node.mergedFromIds.filter((mid) => !toRemove.has(mid));
@@ -227,27 +355,41 @@ export const useConversationStore = create<ConversationState>()(
           }
         }
 
-        const newRootId = rootId && toRemove.has(rootId) ? null : rootId;
+        const newRootId =
+          conversation.rootId && toRemove.has(conversation.rootId) ? null : conversation.rootId;
         // Anything still pointing inside the deleted subtree (the deleted
         // node itself, or activeNodeId if it was one of its descendants)
         // falls back to the deleted node's own parent, which is guaranteed
         // to still exist since it sits outside the subtree being removed.
         const newActiveNodeId =
-          activeNodeId && toRemove.has(activeNodeId) ? target.parentId : activeNodeId;
+          conversation.activeNodeId && toRemove.has(conversation.activeNodeId)
+            ? target.parentId
+            : conversation.activeNodeId;
 
-        set({ nodes: remainingNodes, rootId: newRootId, activeNodeId: newActiveNodeId });
+        set((state) => ({
+          conversations: {
+            ...state.conversations,
+            [currentId]: {
+              ...conversation,
+              nodes: remainingNodes,
+              rootId: newRootId,
+              activeNodeId: newActiveNodeId,
+              updatedAt: Date.now(),
+            },
+          },
+        }));
       },
 
       clearPendingQuote: () => set({ pendingQuote: null }),
 
-      reset: () => set({ nodes: {}, rootId: null, activeNodeId: null, pendingQuote: null }),
-
       getPath: (nodeId) => {
-        const { nodes } = get();
+        const { currentId, conversations } = get();
+        const conversation = currentId ? conversations[currentId] : undefined;
+        if (!conversation) return [];
         const path: ConversationNode[] = [];
         let cursor: string | null = nodeId;
         while (cursor) {
-          const node: ConversationNode | undefined = nodes[cursor];
+          const node: ConversationNode | undefined = conversation.nodes[cursor];
           if (!node) break;
           path.unshift(node);
           cursor = node.parentId;
@@ -256,7 +398,7 @@ export const useConversationStore = create<ConversationState>()(
       },
     }),
     {
-      name: "bettergpt-conversation",
+      name: "bettergpt-conversations-v2",
       storage: createJSONStorage(() => createDebouncedStorage()),
     },
   ),

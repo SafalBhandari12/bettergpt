@@ -1,0 +1,11 @@
+name = "bettergpt-backend"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[dev]
+port = 8787
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bettergpt-history"
+database_id = "a31393f5-0e2a-4b7e-b228-b372e6affa38"

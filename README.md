@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BetterGPT
 
-## Getting Started
+A ChatGPT-style app with branching conversations, backed by your own ChatGPT
+plan. Turborepo monorepo with two apps:
 
-First, run the development server:
+- **`apps/web`** — the Next.js frontend (chat UI, branching/merge graph,
+  history sidebar, login with ChatGPT).
+- **`apps/backend`** — a Cloudflare Worker + D1 database that stores
+  conversation history.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This runs both apps via Turborepo:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Web app at [http://localhost:3000](http://localhost:3000)
+- Backend Worker at `http://localhost:8787` (local D1, via `wrangler dev`)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`apps/web/.env.local` and `apps/backend/.dev.vars` already contain matching
+dev secrets so the two talk to each other locally out of the box.
 
-## Learn More
+Run a single app: `pnpm dev:web` or `pnpm dev:backend`.
 
-To learn more about Next.js, take a look at the following resources:
+## How the two apps talk to each other
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The browser never calls the Worker directly. `apps/web`'s own API routes
+(`app/api/history/*`) resolve the caller's ChatGPT session server-side (via
+`auth.getSession`, see `lib/chatgpt-auth.ts`) into a stable `accountId`, then
+forward the request to the Worker with an internal shared secret
+(`INTERNAL_SECRET`) and `x-user-id: <accountId>`. The Worker (`apps/backend`)
+trusts that header completely — it's never reachable from a browser, so
+that's fine — and scopes every row in D1 to that user id. See
+`apps/web/lib/history-client.ts` and `apps/backend/src/index.ts`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Conversations are stored as one JSON blob per row (the whole node tree), not
+normalized into per-node tables — the frontend owns the tree shape, D1 is
+just durable storage for snapshots keyed by conversation id.
 
-## Deploy on Vercel
+## Data model
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Each turn (`ConversationNode` in `apps/web/lib/conversation-store.ts`) holds
+both the user's prompt and the model's response as one node — branching,
+merging, and deleting all operate on whole turns. A conversation is a tree of
+turns (`parentId` chain); the app keeps many conversations, and the history
+sidebar lists them (with lazy-loading for conversations opened from another
+device that aren't in this browser's local cache yet).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploying the backend
+
+```bash
+cd apps/backend
+wrangler login                       # if not already authenticated
+wrangler d1 create bettergpt-history # update wrangler.toml with the printed database_id
+wrangler d1 migrations apply bettergpt-history --remote
+wrangler secret put INTERNAL_SECRET  # paste the same value as apps/web's INTERNAL_SECRET
+wrangler deploy
+```
+
+Then point the deployed `apps/web` at it by setting, in its environment:
+
+- `BACKEND_URL` — the Worker's `https://*.workers.dev` URL (or custom domain)
+- `INTERNAL_SECRET` — must match the Worker's `INTERNAL_SECRET` secret
+- `LWC_SECRET` — the Login with ChatGPT session-signing secret
+
+## Deploying the web app
+
+Any Next.js host works (Vercel, etc.) — build from `apps/web`, or `pnpm
+--filter web build` from the repo root.

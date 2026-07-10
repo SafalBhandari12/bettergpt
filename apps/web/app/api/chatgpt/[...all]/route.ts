@@ -1,8 +1,4 @@
-import { createChatGPTHandler } from "@opencoredev/loginwithchatgpt-server";
-
-const auth = createChatGPTHandler({
-  secret: process.env.LWC_SECRET,
-});
+import { auth } from "@/lib/chatgpt-auth";
 
 export const GET = (request: Request) => auth.handler(request);
 export const POST = (request: Request) => auth.handler(request);

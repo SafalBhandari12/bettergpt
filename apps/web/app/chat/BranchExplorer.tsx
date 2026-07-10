@@ -1,10 +1,10 @@
 "use client";
 
-import { useConversationStore } from "@/lib/conversation-store";
+import { useConversationTree } from "@/lib/use-conversation-tree";
 import { BranchGraph } from "./BranchGraph";
 
 export function BranchExplorer({ onContinueInChat }: { onContinueInChat: () => void }) {
-  const rootId = useConversationStore((s) => s.rootId);
+  const { rootId } = useConversationTree();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
