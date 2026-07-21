@@ -3,7 +3,7 @@ import { ArrowRightIcon, KeyIcon, PlugIcon, ShieldIcon, ZapIcon } from "@/compon
 import { TabbedCodeWindow } from "@/components/TabbedCodeWindow";
 
 const GATEWAY_URL = "https://api.bettergpt.dev/v1";
-const DISPLAY_KEY = "sk-gptbridge-••••••••";
+const DISPLAY_KEY = "sk-milepost-••••••••";
 
 const codeTabs = [
   {

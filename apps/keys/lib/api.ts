@@ -1,4 +1,5 @@
 export interface KeyMeta {
+  id: string;
   prefix: string;
   createdAt: number;
   lastUsedAt: number | null;
@@ -6,25 +7,26 @@ export interface KeyMeta {
 
 export interface CreatedKey {
   key: string;
+  id: string;
   prefix: string;
   createdAt: number;
 }
 
-export async function fetchKey(): Promise<KeyMeta | null> {
+export async function fetchKeys(): Promise<KeyMeta[]> {
   const res = await fetch("/api/keys");
-  if (!res.ok) throw new Error(`Failed to load key (${res.status})`);
-  const data = (await res.json()) as { key: KeyMeta | null };
-  return data.key;
+  if (!res.ok) throw new Error(`Failed to load keys (${res.status})`);
+  const data = (await res.json()) as { keys: KeyMeta[] };
+  return data.keys;
 }
 
-export async function createOrRotateKey(): Promise<CreatedKey> {
+export async function createKey(): Promise<CreatedKey> {
   const res = await fetch("/api/keys", { method: "POST" });
   if (!res.ok) throw new Error(`Failed to create key (${res.status})`);
   return res.json();
 }
 
-export async function revokeKey(): Promise<void> {
-  const res = await fetch("/api/keys", { method: "DELETE" });
+export async function revokeKey(id: string): Promise<void> {
+  const res = await fetch(`/api/keys/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to revoke key (${res.status})`);
 }
 

@@ -1,12 +1,12 @@
 # BetterGPT
 
 A ChatGPT-style app with branching conversations, backed by your own ChatGPT
-plan — plus a second product, **GPTBridge**, that turns your ChatGPT account
+plan — plus a second product, **Mile-Post**, that turns your ChatGPT account
 into an OpenAI-compatible API key. Turborepo monorepo with three apps:
 
 - **`apps/web`** — the Next.js chat frontend (branching/merge graph, history
   sidebar, login with ChatGPT).
-- **`apps/keys`** ("GPTBridge") — a Next.js app where you sign in with
+- **`apps/keys`** ("Mile-Post") — a Next.js app where you sign in with
   ChatGPT and get a `sk-` API key, usable as a drop-in `OPENAI_API_KEY`
   anywhere, plus an embedded playground to try it without writing code. Its
   own [README](apps/keys/README.md) has **self-hosting instructions** if
@@ -27,7 +27,7 @@ pnpm dev
 This runs all three apps via Turborepo:
 
 - Chat app at [http://localhost:3000](http://localhost:3000)
-- GPTBridge at [http://localhost:3001](http://localhost:3001)
+- Mile-Post at [http://localhost:3001](http://localhost:3001)
 - Backend Worker at `http://localhost:8787` (local D1/KV, via `wrangler dev`)
 
 `apps/web/.env.local`, `apps/keys/.env.local`, and `apps/backend/.dev.vars`
@@ -70,7 +70,7 @@ model's response as one node — branching, merging, and deleting all operate
 on whole turns. Conversations are stored as one JSON blob per row in D1 (the
 frontend owns the tree shape; D1 is just durable storage for snapshots).
 
-**GPTBridge**: `apps/keys` exports the user's ChatGPT OAuth tokens
+**Mile-Post**: `apps/keys` exports the user's ChatGPT OAuth tokens
 (`dangerouslyGetTokens`, since this app's whole purpose is holding them
 server-side) and hands them to the Worker, which encrypts them at rest
 (AES-GCM, `apps/backend/src/crypto.ts`) alongside a hashed `sk-` API key. On
@@ -114,6 +114,6 @@ Any Next.js host works (Vercel, etc.) — build from the app directory, or
 CI (`.github/workflows/deploy-backend.yml`) auto-deploys `apps/backend` to
 Cloudflare on every push to `main` that touches it.
 
-For a full step-by-step self-hosting walkthrough of GPTBridge specifically
+For a full step-by-step self-hosting walkthrough of Mile-Post specifically
 (your own Cloudflare + Vercel, your own secrets), see
 [`apps/keys/README.md`](apps/keys/README.md).

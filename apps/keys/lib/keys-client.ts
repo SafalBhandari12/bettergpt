@@ -4,7 +4,16 @@
  * the caller's ChatGPT session into an accountId.
  */
 
+import { auth } from "@/lib/chatgpt-auth";
+
+export async function requireAccountId(request: Request): Promise<string | null> {
+  const session = await auth.getSession(request);
+  if (session.status !== "authenticated" || !session.user) return null;
+  return session.user.accountId;
+}
+
 export interface RemoteKeyMeta {
+  id: string;
   prefix: string;
   createdAt: number;
   lastUsedAt: number | null;
@@ -33,20 +42,20 @@ function backendHeaders(userId: string): HeadersInit {
   };
 }
 
-export async function getKey(userId: string): Promise<RemoteKeyMeta | null> {
+export async function getKeys(userId: string): Promise<RemoteKeyMeta[]> {
   const res = await fetch(backendUrl("/keys"), {
     headers: backendHeaders(userId),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`Backend get key failed: ${res.status}`);
-  const { key } = (await res.json()) as { key: RemoteKeyMeta | null };
-  return key;
+  if (!res.ok) throw new Error(`Backend get keys failed: ${res.status}`);
+  const { keys } = (await res.json()) as { keys: RemoteKeyMeta[] };
+  return keys;
 }
 
-export async function createOrRotateKey(
+export async function createKey(
   userId: string,
   tokens: TokensPayload,
-): Promise<{ key: string; prefix: string; createdAt: number }> {
+): Promise<{ key: string; id: string; prefix: string; createdAt: number }> {
   const res = await fetch(backendUrl("/keys"), {
     method: "POST",
     headers: backendHeaders(userId),
@@ -56,8 +65,8 @@ export async function createOrRotateKey(
   return res.json();
 }
 
-export async function revokeKey(userId: string): Promise<void> {
-  const res = await fetch(backendUrl("/keys"), {
+export async function revokeKey(userId: string, keyId: string): Promise<void> {
+  const res = await fetch(backendUrl(`/keys/${encodeURIComponent(keyId)}`), {
     method: "DELETE",
     headers: backendHeaders(userId),
   });

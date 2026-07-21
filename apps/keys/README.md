@@ -1,4 +1,4 @@
-# GPTBridge
+# Mile-Post
 
 Sign in with your ChatGPT account, get a standard OpenAI-compatible `sk-`
 API key, use it in any tool that speaks the Chat Completions format —

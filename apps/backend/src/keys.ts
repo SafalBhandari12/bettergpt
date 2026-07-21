@@ -20,21 +20,27 @@ keys.use("*", requireUserId);
 
 keys.get("/", async (c) => {
   const userId = c.get("userId");
-  const row = await c.env.DB.prepare(
-    "SELECT key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL",
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC",
   )
     .bind(userId)
-    .first<{ key_prefix: string; created_at: number; last_used_at: number | null }>();
+    .all<{ id: string; key_prefix: string; created_at: number; last_used_at: number | null }>();
 
-  if (!row) return c.json({ key: null });
   return c.json({
-    key: { prefix: row.key_prefix, createdAt: row.created_at, lastUsedAt: row.last_used_at },
+    keys: results.map((row) => ({
+      id: row.id,
+      prefix: row.key_prefix,
+      createdAt: row.created_at,
+      lastUsedAt: row.last_used_at,
+    })),
   });
 });
 
-// Creates or rotates the caller's key. Always re-supplied fresh OAuth tokens
-// from the current browser session (the dashboard fetches them right before
-// calling this), since generating a key is also how we (re-)link tokens.
+// Creates a new key for the caller, alongside any existing ones — a user can
+// hold multiple concurrent keys, and creating one never touches the others.
+// Always re-supplied fresh OAuth tokens from the current browser session
+// (the dashboard fetches them right before calling this), since this is
+// also how we (re-)link tokens for the account.
 keys.post("/", async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json<CreateKeyBody>();
@@ -64,26 +70,30 @@ keys.post("/", async (c) => {
     .bind(userId, encAccess, encRefresh, encIdToken, body.tokens.expiresAt ?? null, now)
     .run();
 
-  // One active key per user — rotating replaces the previous one outright,
-  // matching the "regenerate invalidates the old key" pattern of most
-  // API-key dashboards.
-  await c.env.DB.prepare("DELETE FROM api_keys WHERE user_id = ?").bind(userId).run();
   const { plaintext, prefix } = randomApiKey();
   const keyHash = await sha256Hex(plaintext);
+  const id = crypto.randomUUID();
   await c.env.DB.prepare(
     "INSERT INTO api_keys (id, user_id, key_hash, key_prefix, created_at) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(crypto.randomUUID(), userId, keyHash, prefix, now)
+    .bind(id, userId, keyHash, prefix, now)
     .run();
 
   // The plaintext key is returned exactly once — only its prefix and hash
   // are ever stored.
-  return c.json({ key: plaintext, prefix, createdAt: now });
+  return c.json({ key: plaintext, id, prefix, createdAt: now });
 });
 
-keys.delete("/", async (c) => {
+// Revokes a single key by id. Other keys belonging to the user, and the
+// linked OAuth tokens they all share, are untouched.
+keys.delete("/:id", async (c) => {
   const userId = c.get("userId");
-  await c.env.DB.prepare("DELETE FROM api_keys WHERE user_id = ?").bind(userId).run();
-  await c.env.DB.prepare("DELETE FROM oauth_tokens WHERE user_id = ?").bind(userId).run();
+  const id = c.req.param("id");
+  const result = await c.env.DB.prepare(
+    "UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+  )
+    .bind(Date.now(), id, userId)
+    .run();
+  if (result.meta.changes === 0) return c.json({ error: "Key not found" }, 404);
   return c.json({ ok: true });
 });

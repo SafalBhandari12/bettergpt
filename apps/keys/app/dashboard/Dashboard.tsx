@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import type { ChatGPTUser } from "@opencoredev/loginwithchatgpt-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, CopyIcon, KeyIcon, RefreshIcon, TrashIcon } from "@/components/icons";
+import { CheckIcon, CopyIcon, KeyIcon, TrashIcon } from "@/components/icons";
 import { CodeWindow } from "@/components/CodeWindow";
-import { createOrRotateKey, fetchKey, revokeKey, type KeyMeta } from "@/lib/api";
+import { createKey, fetchKeys, revokeKey } from "@/lib/api";
 import { PlaygroundPanel } from "./PlaygroundPanel";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "https://api.bettergpt.dev/v1";
@@ -37,45 +37,57 @@ interface DashboardProps {
   logout: () => Promise<void>;
 }
 
+interface RevealedKey {
+  id: string;
+  key: string;
+}
+
 export function Dashboard({ user, logout }: DashboardProps) {
   const queryClient = useQueryClient();
 
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [revealedKey, setRevealedKey] = useState<RevealedKey | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const keyQuery = useQuery({ queryKey: ["key"], queryFn: fetchKey });
+  const keysQuery = useQuery({ queryKey: ["keys"], queryFn: fetchKeys });
 
   const createMutation = useMutation({
-    mutationFn: createOrRotateKey,
+    mutationFn: createKey,
     onSuccess: (data) => {
-      setRevealedKey(data.key);
-      const meta: KeyMeta = { prefix: data.prefix, createdAt: data.createdAt, lastUsedAt: null };
-      queryClient.setQueryData(["key"], meta);
+      setRevealedKey({ id: data.id, key: data.key });
+      queryClient.setQueryData(["keys"], (existing: typeof keysQuery.data) => [
+        { id: data.id, prefix: data.prefix, createdAt: data.createdAt, lastUsedAt: null },
+        ...(existing ?? []),
+      ]);
       queryClient.invalidateQueries({ queryKey: ["playground-models"] });
     },
   });
 
   const revokeMutation = useMutation({
     mutationFn: revokeKey,
-    onSuccess: () => {
-      setRevealedKey(null);
-      queryClient.setQueryData(["key"], null);
+    onSuccess: (_, id) => {
+      setRevealedKey((current) => (current?.id === id ? null : current));
+      queryClient.setQueryData(["keys"], (existing: typeof keysQuery.data) =>
+        (existing ?? []).filter((k) => k.id !== id),
+      );
       queryClient.invalidateQueries({ queryKey: ["playground-models"] });
     },
+    onSettled: () => setRevokingId(null),
   });
 
-  function handleRevoke() {
+  function handleRevoke(id: string) {
     if (!window.confirm("Revoke this key? Anything using it will stop working immediately.")) return;
-    revokeMutation.mutate();
+    setRevokingId(id);
+    revokeMutation.mutate(id);
   }
 
-  const keyMeta = keyQuery.data;
+  const keys = keysQuery.data ?? [];
   const busy = createMutation.isPending || revokeMutation.isPending;
   const error =
-    (keyQuery.error instanceof Error ? keyQuery.error.message : null) ??
+    (keysQuery.error instanceof Error ? keysQuery.error.message : null) ??
     (createMutation.error instanceof Error ? createMutation.error.message : null) ??
     (revokeMutation.error instanceof Error ? revokeMutation.error.message : null);
 
-  const displayKey = revealedKey ?? "sk-gptbridge-••••••••••••••••••••••••••••••••••••••••";
+  const displayKey = revealedKey?.key ?? "sk-milepost-••••••••••••••••••••••••••••••••••••••••";
 
   const curlSample = `curl ${GATEWAY_URL}/chat/completions \\
   -H "Authorization: Bearer ${displayKey}" \\
@@ -118,7 +130,7 @@ console.log(response.choices[0].message.content);`;
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-accent-foreground">
             <KeyIcon className="h-3.5 w-3.5" />
           </span>
-          GPTBridge
+          Mile-Post
         </Link>
         <div className="flex items-center gap-3">
           <span className="hidden text-xs text-zinc-500 sm:inline dark:text-zinc-400">
@@ -136,14 +148,14 @@ console.log(response.choices[0].message.content);`;
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden p-6 lg:grid-cols-[1fr_380px]">
         <div className="thin-scrollbar min-h-0 overflow-y-auto pr-1">
           <h1 className="text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
-            Your API key
+            Your API keys
           </h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Use this key with the OpenAI SDK, or any OpenAI-compatible tool, pointed at{" "}
+            Use a key with the OpenAI SDK, or any OpenAI-compatible tool, pointed at{" "}
             <code className="rounded bg-black/[.05] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
               {GATEWAY_URL}
             </code>
-            .
+            . Create as many as you need — regenerating or revoking one never affects the others.
           </p>
 
           {error && (
@@ -152,62 +164,72 @@ console.log(response.choices[0].message.content);`;
             </p>
           )}
 
-          <div className="mt-6 rounded-2xl border border-black/[.08] bg-white p-6 dark:border-white/[.145] dark:bg-zinc-950">
-            {keyQuery.isLoading ? (
-              <p className="text-sm text-zinc-400">Loading…</p>
-            ) : !keyMeta && !revealedKey ? (
-              <div className="flex flex-col items-start gap-4">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  You don&rsquo;t have an API key yet.
-                </p>
+          <div className="mt-6 flex flex-col gap-3">
+            {keysQuery.isLoading ? (
+              <div className="rounded-2xl border border-black/[.08] bg-white p-6 dark:border-white/[.145] dark:bg-zinc-950">
+                <p className="text-sm text-zinc-400">Loading…</p>
+              </div>
+            ) : (
+              <>
+                {keys.length === 0 && (
+                  <div className="rounded-2xl border border-black/[.08] bg-white p-6 dark:border-white/[.145] dark:bg-zinc-950">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      You don&rsquo;t have an API key yet.
+                    </p>
+                  </div>
+                )}
+
+                {keys.map((k) => {
+                  const isRevealed = revealedKey?.id === k.id;
+                  const shownValue = isRevealed ? revealedKey.key : `${k.prefix}…`;
+                  return (
+                    <div
+                      key={k.id}
+                      className="flex flex-col gap-3 rounded-2xl border border-black/[.08] bg-white p-6 dark:border-white/[.145] dark:bg-zinc-950"
+                    >
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-black/[.08] bg-zinc-50 px-4 py-3 font-mono text-sm text-black dark:border-white/[.145] dark:bg-zinc-900 dark:text-zinc-50">
+                        <span className="truncate">{shownValue}</span>
+                        {isRevealed && <CopyButton text={revealedKey.key} />}
+                      </div>
+
+                      {isRevealed ? (
+                        <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs leading-5 text-amber-900/90 dark:bg-amber-500/10 dark:text-amber-100/80">
+                          Copy this now — for your security, we won&rsquo;t show the full key again.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-zinc-400">
+                          Created {formatDate(k.createdAt)}
+                          {k.lastUsedAt ? ` · last used ${formatDate(k.lastUsedAt)}` : " · never used yet"}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleRevoke(k.id)}
+                          disabled={busy}
+                          className="flex items-center gap-1.5 rounded-full border border-black/[.08] px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-white/[.145] dark:text-red-400 dark:hover:bg-red-500/10"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                          {revokeMutation.isPending && revokingId === k.id ? "Revoking…" : "Revoke"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
                 <button
                   onClick={() => createMutation.mutate()}
                   disabled={busy}
-                  className="flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="flex h-11 items-center justify-center gap-2 self-start rounded-full bg-accent px-5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   <KeyIcon className="h-4 w-4" />
-                  {createMutation.isPending ? "Creating…" : "Create API key"}
+                  {createMutation.isPending
+                    ? "Creating…"
+                    : keys.length === 0
+                      ? "Create API key"
+                      : "Create another key"}
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-black/[.08] bg-zinc-50 px-4 py-3 font-mono text-sm text-black dark:border-white/[.145] dark:bg-zinc-900 dark:text-zinc-50">
-                  <span className="truncate">{displayKey}</span>
-                  {revealedKey && <CopyButton text={revealedKey} />}
-                </div>
-
-                {revealedKey ? (
-                  <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs leading-5 text-amber-900/90 dark:bg-amber-500/10 dark:text-amber-100/80">
-                    Copy this now — for your security, we won&rsquo;t show the full key again.
-                  </p>
-                ) : (
-                  keyMeta && (
-                    <p className="text-xs text-zinc-400">
-                      Created {formatDate(keyMeta.createdAt)}
-                      {keyMeta.lastUsedAt ? ` · last used ${formatDate(keyMeta.lastUsedAt)}` : " · never used yet"}
-                    </p>
-                  )
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => createMutation.mutate()}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 rounded-full border border-black/[.08] px-3 py-1.5 text-xs font-medium text-black hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.145] dark:text-zinc-50 dark:hover:bg-white/[.06]"
-                  >
-                    <RefreshIcon className="h-3.5 w-3.5" />
-                    Regenerate
-                  </button>
-                  <button
-                    onClick={handleRevoke}
-                    disabled={busy}
-                    className="flex items-center gap-1.5 rounded-full border border-black/[.08] px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-white/[.145] dark:text-red-400 dark:hover:bg-red-500/10"
-                  >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                    Revoke
-                  </button>
-                </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -222,7 +244,7 @@ console.log(response.choices[0].message.content);`;
         </div>
 
         <div className="min-h-0">
-          <PlaygroundPanel hasKey={Boolean(keyMeta)} />
+          <PlaygroundPanel hasKey={keys.length > 0} />
         </div>
       </div>
     </div>

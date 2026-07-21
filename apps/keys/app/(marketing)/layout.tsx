@@ -12,7 +12,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <KeyIcon className="h-4 w-4" />
           </span>
-          GPTBridge
+          Mile-Post
         </Link>
         <nav className="flex items-center gap-6">
           <Link
@@ -64,7 +64,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </a>
         </div>
         <p>
-          GPTBridge connects to your own ChatGPT account. Open source — run your own instance
+          Mile-Post connects to your own ChatGPT account. Open source — run your own instance
           instead of trusting this one.
         </p>
       </footer>

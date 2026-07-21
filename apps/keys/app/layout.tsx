@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GPTBridge",
+  title: "Mile-Post",
   description: "Sign in with your ChatGPT account and get an OpenAI-compatible API key.",
 };
 
